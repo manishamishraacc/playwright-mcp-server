@@ -13,6 +13,7 @@ session_manager = SessionManager()
 # Import and register tools
 import tools.playwright_runner
 import tools.azure_devops
+import tools.browser_extension_bridge
 
 # Configure logging
 logging.basicConfig(
@@ -122,6 +123,56 @@ async def register_tools():
         name="trigger_build",
         description="Trigger a new build in Azure DevOps",
         parameters=tools.azure_devops.trigger_build._tool_parameters
+    )
+    
+    # Register browser extension bridge tools
+    tool_registry.register_tool(
+        tools.browser_extension_bridge.register_browser_extension_client,
+        name="register_browser_extension_client",
+        description="Register a browser extension client for remote browser automation",
+        parameters=tools.browser_extension_bridge.register_browser_extension_client._tool_parameters
+    )
+    
+    tool_registry.register_tool(
+        tools.browser_extension_bridge.create_remote_browser_session,
+        name="create_remote_browser_session",
+        description="Create a browser session on a remote client machine via browser extension",
+        parameters=tools.browser_extension_bridge.create_remote_browser_session._tool_parameters
+    )
+    
+    tool_registry.register_tool(
+        tools.browser_extension_bridge.navigate_remote_browser,
+        name="navigate_remote_browser",
+        description="Navigate to URL in remote browser session",
+        parameters=tools.browser_extension_bridge.navigate_remote_browser._tool_parameters
+    )
+    
+    tool_registry.register_tool(
+        tools.browser_extension_bridge.click_remote_element,
+        name="click_remote_element",
+        description="Click element in remote browser session",
+        parameters=tools.browser_extension_bridge.click_remote_element._tool_parameters
+    )
+    
+    tool_registry.register_tool(
+        tools.browser_extension_bridge.fill_remote_form_field,
+        name="fill_remote_form_field",
+        description="Fill form field in remote browser session",
+        parameters=tools.browser_extension_bridge.fill_remote_form_field._tool_parameters
+    )
+    
+    tool_registry.register_tool(
+        tools.browser_extension_bridge.take_remote_screenshot,
+        name="take_remote_screenshot",
+        description="Take screenshot in remote browser session",
+        parameters=tools.browser_extension_bridge.take_remote_screenshot._tool_parameters
+    )
+    
+    tool_registry.register_tool(
+        tools.browser_extension_bridge.close_remote_browser_session,
+        name="close_remote_browser_session",
+        description="Close remote browser session",
+        parameters=tools.browser_extension_bridge.close_remote_browser_session._tool_parameters
     )
 
 @asynccontextmanager
