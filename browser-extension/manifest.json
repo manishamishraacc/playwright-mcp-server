@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "MCP Playwright Browser Controller",
+  "version": "1.0.0",
+  "description": "Browser extension for MCP Playwright automation - launches browsers on client machines",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://playwrightmcp-dzgjhpfxb9e3bbg9.uksouth-01.azurewebsites.net/*",
+    "https://portal.azure.com/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content-script.js"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "MCP Browser Controller"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["injected-script.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+} 
