@@ -3,13 +3,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
-
 # Global instances
 from registry import ToolRegistry
 from context.memory import SessionManager
@@ -21,28 +14,12 @@ session_manager = SessionManager()
 import tools.playwright_runner
 import tools.azure_devops
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Application lifespan manager"""
-    logger.info("Starting MCP Server...")
-    
-    # Initialize session manager
-    await session_manager.initialize()
-    logger.info("Session manager initialized")
-    
-    # Initialize tool registry
-    await tool_registry.initialize()
-    logger.info("Tool registry initialized")
-    
-    # Register tools
-    await register_tools()
-    logger.info("Tools registered")
-    
-    yield
-    
-    logger.info("Shutting down MCP Server...")
-    # Cleanup sessions
-    await session_manager.cleanup()
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 async def register_tools():
     """Register all available tools"""
@@ -147,6 +124,29 @@ async def register_tools():
         parameters=tools.azure_devops.trigger_build._tool_parameters
     )
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager"""
+    logger.info("Starting MCP Server...")
+    
+    # Initialize session manager
+    await session_manager.initialize()
+    logger.info("Session manager initialized")
+    
+    # Initialize tool registry
+    await tool_registry.initialize()
+    logger.info("Tool registry initialized")
+    
+    # Register tools
+    await register_tools()
+    logger.info("Tools registered")
+    
+    yield
+    
+    logger.info("Shutting down MCP Server...")
+    # Cleanup sessions
+    await session_manager.cleanup()
+
 app = FastAPI(
     title="MCP Server",
     description="Model Context Protocol Server with FastAPI",
@@ -163,7 +163,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers (import here to avoid circular imports)
+# Include MCP routes
 from routes.mcp import router as mcp_router
 app.include_router(mcp_router, prefix="/api/v1")
 
@@ -183,6 +183,14 @@ async def health_check():
         "status": "healthy",
         "tools_registered": len(tool_registry.tools),
         "active_sessions": len(session_manager.sessions)
+    }
+
+@app.get("/test")
+async def test():
+    """Test endpoint"""
+    return {
+        "message": "Test endpoint working",
+        "status": "success"
     }
 
 if __name__ == "__main__":

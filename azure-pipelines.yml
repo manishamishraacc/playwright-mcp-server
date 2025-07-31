@@ -1,0 +1,76 @@
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  python.version: '3.9'
+  appName: 'playwright-mcp-server'
+  resourceGroupName: 'playwright-mcp-rg'
+
+stages:
+- stage: Build
+  displayName: 'Build and Test'
+  jobs:
+  - job: Build
+    displayName: 'Build'
+    steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '$(python.version)'
+        addToPath: true
+
+    - script: |
+        python -m pip install --upgrade pip
+      displayName: 'Upgrade pip'
+
+    - script: |
+        pip install -r requirements.txt
+      displayName: 'Install dependencies'
+
+    - script: |
+        playwright install --with-deps chromium firefox webkit
+      displayName: 'Install Playwright browsers'
+
+    - script: |
+        python -m pytest tests/ -v
+      displayName: 'Run tests'
+      condition: succeededOrFailed()
+
+    - script: |
+        python -c "import main; print('✅ Application imports successfully')"
+      displayName: 'Test application import'
+
+- stage: Deploy
+  displayName: 'Deploy to Azure'
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - deployment: Deploy
+    displayName: 'Deploy to Azure App Service'
+    environment: production
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '$(python.version)'
+              addToPath: true
+
+          - task: ArchiveFiles@2
+            inputs:
+              rootFolderOrFile: '$(System.DefaultWorkingDirectory)'
+              includeRootFolder: false
+              archiveType: 'zip'
+              archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+              replaceExistingArchive: true
+
+          - task: AzureWebApp@1
+            inputs:
+              azureSubscription: 'Your-Azure-Subscription'
+              appName: '$(appName)'
+              package: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+              appType: 'webAppLinux'
+              runtimeStack: 'PYTHON|3.9' 
