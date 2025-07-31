@@ -3,6 +3,16 @@ import asyncio
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 import uuid
+import os
+from pathlib import Path
+
+# Import Playwright
+try:
+    from playwright.async_api import async_playwright, Browser, Page
+    PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    PLAYWRIGHT_AVAILABLE = False
+    logging.warning("Playwright not installed. Browser automation will be simulated.")
 
 from registry import tool
 
@@ -12,33 +22,111 @@ logger = logging.getLogger(__name__)
 class PlaywrightSessionManager:
     def __init__(self):
         self.sessions: Dict[str, Dict[str, Any]] = {}
+        self.browsers: Dict[str, Browser] = {}
+        self.pages: Dict[str, Page] = {}
         
-    async def get_or_create_session(self, session_id: str, browser_type: str = "chrome") -> Dict[str, Any]:
-        """Get existing session or create new one"""
+    async def get_or_create_session(self, session_id: str, browser_type: str = "chrome", headless: bool = False) -> Dict[str, Any]:
+        """Get existing session or create new one with real browser"""
         if session_id not in self.sessions:
-            # In a real implementation, you would initialize Playwright here
-            # For now, we'll simulate browser session creation
-            self.sessions[session_id] = {
-                "browser_type": browser_type,
-                "created_at": datetime.utcnow(),
-                "current_url": None,
-                "page_state": {},
-                "test_steps": [],
-                "screenshots": []
-            }
-            logger.info(f"Created new Playwright session: {session_id}")
+            if not PLAYWRIGHT_AVAILABLE:
+                # Fallback to simulation if Playwright not available
+                self.sessions[session_id] = {
+                    "browser_type": browser_type,
+                    "created_at": datetime.utcnow(),
+                    "current_url": None,
+                    "page_state": {},
+                    "test_steps": [],
+                    "screenshots": [],
+                    "simulated": True
+                }
+                logger.warning(f"Created simulated Playwright session: {session_id} (Playwright not available)")
+            else:
+                # Create real browser session
+                try:
+                    playwright = await async_playwright().start()
+                    
+                    # Launch browser based on type
+                    if browser_type == "chrome":
+                        browser = await playwright.chromium.launch(headless=headless)
+                    elif browser_type == "firefox":
+                        browser = await playwright.firefox.launch(headless=headless)
+                    elif browser_type == "safari":
+                        browser = await playwright.webkit.launch(headless=headless)
+                    else:
+                        browser = await playwright.chromium.launch(headless=headless)
+                    
+                    # Create new page
+                    page = await browser.new_page()
+                    
+                    # Store browser and page references
+                    self.browsers[session_id] = browser
+                    self.pages[session_id] = page
+                    
+                    self.sessions[session_id] = {
+                        "browser_type": browser_type,
+                        "created_at": datetime.utcnow(),
+                        "current_url": None,
+                        "page_state": {},
+                        "test_steps": [],
+                        "screenshots": [],
+                        "simulated": False,
+                        "playwright": playwright
+                    }
+                    logger.info(f"Created real Playwright session: {session_id} with {browser_type}")
+                except Exception as e:
+                    logger.error(f"Failed to create browser session: {e}")
+                    # Fallback to simulation
+                    self.sessions[session_id] = {
+                        "browser_type": browser_type,
+                        "created_at": datetime.utcnow(),
+                        "current_url": None,
+                        "page_state": {},
+                        "test_steps": [],
+                        "screenshots": [],
+                        "simulated": True,
+                        "error": str(e)
+                    }
         return self.sessions[session_id]
     
     async def close_session(self, session_id: str):
         """Close a browser session"""
         if session_id in self.sessions:
-            # In a real implementation, you would close the browser here
+            session = self.sessions[session_id]
+            
+            if not session.get("simulated", True):
+                # Close real browser
+                try:
+                    if session_id in self.pages:
+                        await self.pages[session_id].close()
+                        del self.pages[session_id]
+                    
+                    if session_id in self.browsers:
+                        await self.browsers[session_id].close()
+                        del self.browsers[session_id]
+                    
+                    if "playwright" in session:
+                        await session["playwright"].stop()
+                        
+                    logger.info(f"Closed real Playwright session: {session_id}")
+                except Exception as e:
+                    logger.error(f"Error closing browser session {session_id}: {e}")
+            else:
+                logger.info(f"Closed simulated Playwright session: {session_id}")
+            
             del self.sessions[session_id]
-            logger.info(f"Closed Playwright session: {session_id}")
     
     def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
         """Get session without creating"""
         return self.sessions.get(session_id)
+    
+    def get_page(self, session_id: str) -> Optional[Page]:
+        """Get the page for a session"""
+        return self.pages.get(session_id)
+    
+    def is_simulated(self, session_id: str) -> bool:
+        """Check if session is simulated"""
+        session = self.sessions.get(session_id)
+        return session.get("simulated", True) if session else True
 
 # Global instance
 playwright_sessions = PlaywrightSessionManager()
@@ -78,7 +166,7 @@ async def create_browser_session(
     logger.info(f"Creating browser session: {session_id} with {browser}")
     
     # Get or create session
-    session = await playwright_sessions.get_or_create_session(session_id, browser)
+    session = await playwright_sessions.get_or_create_session(session_id, browser, headless)
     
     result = {
         "session_id": session_id,
@@ -86,7 +174,8 @@ async def create_browser_session(
         "headless": headless,
         "status": "created",
         "created_at": session["created_at"].isoformat(),
-        "message": f"Browser session {session_id} ready for testing"
+        "simulated": session.get("simulated", True),
+        "message": f"Browser session {session_id} ready for testing" + (" (simulated)" if session.get("simulated", True) else " (real browser)")
     }
     
     logger.info(f"Browser session created: {session_id}")
@@ -135,26 +224,69 @@ async def navigate_to_url(
             "session_id": session_id
         }
     
-    # Simulate navigation
-    await asyncio.sleep(1)
-    
-    # Update session state
-    session["current_url"] = url
-    session["test_steps"].append({
-        "action": "navigate",
-        "url": url,
-        "timestamp": datetime.utcnow().isoformat()
-    })
-    
-    result = {
-        "session_id": session_id,
-        "action": "navigate",
-        "url": url,
-        "current_url": url,
-        "status": "success",
-        "wait_for_load": wait_for_load,
-        "timestamp": datetime.utcnow().isoformat()
-    }
+    # Check if session is simulated
+    if playwright_sessions.is_simulated(session_id):
+        # Simulate navigation
+        await asyncio.sleep(1)
+        session["current_url"] = url
+        session["test_steps"].append({
+            "action": "navigate",
+            "url": url,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        
+        result = {
+            "session_id": session_id,
+            "action": "navigate",
+            "url": url,
+            "current_url": url,
+            "status": "success (simulated)",
+            "wait_for_load": wait_for_load,
+            "timestamp": datetime.utcnow().isoformat(),
+            "message": f"Simulated navigation to {url}"
+        }
+    else:
+        # Real navigation
+        try:
+            page = playwright_sessions.get_page(session_id)
+            if not page:
+                return {
+                    "error": f"Page not found for session {session_id}",
+                    "session_id": session_id
+                }
+            
+            # Navigate to URL
+            await page.goto(url, wait_until="networkidle" if wait_for_load else "domcontentloaded")
+            
+            # Update session state
+            session["current_url"] = url
+            session["test_steps"].append({
+                "action": "navigate",
+                "url": url,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+            
+            result = {
+                "session_id": session_id,
+                "action": "navigate",
+                "url": url,
+                "current_url": url,
+                "status": "success",
+                "wait_for_load": wait_for_load,
+                "timestamp": datetime.utcnow().isoformat(),
+                "title": await page.title(),
+                "message": f"Successfully navigated to {url}"
+            }
+        except Exception as e:
+            logger.error(f"Navigation failed: {e}")
+            result = {
+                "session_id": session_id,
+                "action": "navigate",
+                "url": url,
+                "status": "failed",
+                "error": str(e),
+                "message": f"Failed to navigate to {url}: {e}"
+            }
     
     logger.info(f"Navigation completed: {url}")
     
