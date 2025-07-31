@@ -72,12 +72,172 @@ def get_tool_registry() -> ToolRegistry:
     import sys
     # Try main_fixed first (current running module), then main
     main_module = sys.modules.get('main_fixed') or sys.modules.get('main')
-    if main_module:
+    if main_module and hasattr(main_module, 'tool_registry'):
         return main_module.tool_registry
     else:
-        # Fallback for testing
+        # Fallback - create and initialize a new registry with all tools
         from registry import ToolRegistry
-        return ToolRegistry()
+        from context.memory import SessionManager
+        import tools.playwright_runner
+        import tools.azure_devops
+        import tools.browser_extension_bridge
+        
+        # Create new instances
+        tool_registry = ToolRegistry()
+        session_manager = SessionManager()
+        
+        # Register all tools manually
+        tool_registry.register_tool(
+            tools.playwright_runner.create_browser_session,
+            name="create_browser_session",
+            description="Create a new browser session for E2E testing",
+            parameters=tools.playwright_runner.create_browser_session._tool_parameters
+        )
+        
+        tool_registry.register_tool(
+            tools.playwright_runner.navigate_to_url,
+            name="navigate_to_url",
+            description="Navigate to a URL in the browser session",
+            parameters=tools.playwright_runner.navigate_to_url._tool_parameters
+        )
+        
+        tool_registry.register_tool(
+            tools.playwright_runner.click_element,
+            name="click_element",
+            description="Click an element on the page",
+            parameters=tools.playwright_runner.click_element._tool_parameters
+        )
+        
+        tool_registry.register_tool(
+            tools.playwright_runner.fill_form_field,
+            name="fill_form_field",
+            description="Fill a form field with text",
+            parameters=tools.playwright_runner.fill_form_field._tool_parameters
+        )
+        
+        tool_registry.register_tool(
+            tools.playwright_runner.take_screenshot,
+            name="take_screenshot",
+            description="Take a screenshot of the current page",
+            parameters=tools.playwright_runner.take_screenshot._tool_parameters
+        )
+        
+        tool_registry.register_tool(
+            tools.playwright_runner.get_page_content,
+            name="get_page_content",
+            description="Get text content from the current page",
+            parameters=tools.playwright_runner.get_page_content._tool_parameters
+        )
+        
+        tool_registry.register_tool(
+            tools.playwright_runner.close_browser_session,
+            name="close_browser_session",
+            description="Close the browser session and clean up resources",
+            parameters=tools.playwright_runner.close_browser_session._tool_parameters
+        )
+        
+        # Register legacy Playwright tools
+        tool_registry.register_tool(
+            tools.playwright_runner.run_ui_tests,
+            name="run_ui_tests",
+            description="Run UI tests using Playwright (legacy - use session-based tools for E2E)",
+            parameters=tools.playwright_runner.run_ui_tests._tool_parameters
+        )
+        
+        tool_registry.register_tool(
+            tools.playwright_runner.run_accessibility_tests,
+            name="run_accessibility_tests",
+            description="Run accessibility tests on a webpage",
+            parameters=tools.playwright_runner.run_accessibility_tests._tool_parameters
+        )
+        
+        tool_registry.register_tool(
+            tools.playwright_runner.generate_test_report,
+            name="generate_test_report",
+            description="Generate a comprehensive test report",
+            parameters=tools.playwright_runner.generate_test_report._tool_parameters
+        )
+        
+        # Register tools from azure_devops
+        tool_registry.register_tool(
+            tools.azure_devops.get_release_info,
+            name="get_release_info",
+            description="Get release information from Azure DevOps",
+            parameters=tools.azure_devops.get_release_info._tool_parameters
+        )
+        
+        tool_registry.register_tool(
+            tools.azure_devops.create_release,
+            name="create_release",
+            description="Create a new release in Azure DevOps",
+            parameters=tools.azure_devops.create_release._tool_parameters
+        )
+        
+        tool_registry.register_tool(
+            tools.azure_devops.get_build_info,
+            name="get_build_info",
+            description="Get build information from Azure DevOps",
+            parameters=tools.azure_devops.get_build_info._tool_parameters
+        )
+        
+        tool_registry.register_tool(
+            tools.azure_devops.trigger_build,
+            name="trigger_build",
+            description="Trigger a new build in Azure DevOps",
+            parameters=tools.azure_devops.trigger_build._tool_parameters
+        )
+        
+        # Register browser extension bridge tools
+        tool_registry.register_tool(
+            tools.browser_extension_bridge.register_browser_extension_client,
+            name="register_browser_extension_client",
+            description="Register a browser extension client for remote browser automation",
+            parameters=tools.browser_extension_bridge.register_browser_extension_client._tool_parameters
+        )
+        
+        tool_registry.register_tool(
+            tools.browser_extension_bridge.create_remote_browser_session,
+            name="create_remote_browser_session",
+            description="Create a browser session on a remote client machine via browser extension",
+            parameters=tools.browser_extension_bridge.create_remote_browser_session._tool_parameters
+        )
+        
+        tool_registry.register_tool(
+            tools.browser_extension_bridge.navigate_remote_browser,
+            name="navigate_remote_browser",
+            description="Navigate to URL in remote browser session",
+            parameters=tools.browser_extension_bridge.navigate_remote_browser._tool_parameters
+        )
+        
+        tool_registry.register_tool(
+            tools.browser_extension_bridge.click_remote_element,
+            name="click_remote_element",
+            description="Click element in remote browser session",
+            parameters=tools.browser_extension_bridge.click_remote_element._tool_parameters
+        )
+        
+        tool_registry.register_tool(
+            tools.browser_extension_bridge.fill_remote_form_field,
+            name="fill_remote_form_field",
+            description="Fill form field in remote browser session",
+            parameters=tools.browser_extension_bridge.fill_remote_form_field._tool_parameters
+        )
+        
+        tool_registry.register_tool(
+            tools.browser_extension_bridge.take_remote_screenshot,
+            name="take_remote_screenshot",
+            description="Take screenshot in remote browser session",
+            parameters=tools.browser_extension_bridge.take_remote_screenshot._tool_parameters
+        )
+        
+        tool_registry.register_tool(
+            tools.browser_extension_bridge.close_remote_browser_session,
+            name="close_remote_browser_session",
+            description="Close remote browser session",
+            parameters=tools.browser_extension_bridge.close_remote_browser_session._tool_parameters
+        )
+        
+        return tool_registry
 
 @router.post("/chat", response_model=MCPResponse)
 async def chat(
