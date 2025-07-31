@@ -60,14 +60,14 @@ playwright_sessions = PlaywrightSessionManager()
         "headless": {
             "type": "bool",
             "description": "Run browser in headless mode",
-            "default": True
+            "default": False
         }
     }
 )
 async def create_browser_session(
     session_id: str,
     browser: str = "chrome",
-    headless: bool = True
+    headless: bool = False
 ) -> Dict[str, Any]:
     """
     Create a new browser session for E2E testing
@@ -490,7 +490,7 @@ async def close_browser_session(session_id: str) -> Dict[str, Any]:
         "headless": {
             "type": "bool",
             "description": "Run browser in headless mode",
-            "default": True
+            "default": False
         },
         "url": {
             "type": "str",
@@ -511,7 +511,7 @@ async def close_browser_session(session_id: str) -> Dict[str, Any]:
 )
 async def run_ui_tests(
     browser: str = "chrome",
-    headless: bool = True,
+    headless: bool = False,
     url: str = "",
     test_script: str = "",
     screenshot: bool = False
